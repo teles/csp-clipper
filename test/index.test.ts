@@ -55,8 +55,8 @@ describe("Worker", () => {
   it("should return CSP header when present", async () => {
     const mockCsp = "default-src 'self'; script-src 'none'";
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response("", {
-        headers: { "content-security-policy": mockCsp },
+      new Response("<html><head><title>Example Site</title></head></html>", {
+        headers: { "content-security-policy": mockCsp, "content-type": "text/html" },
       }),
     );
 
@@ -66,6 +66,7 @@ describe("Worker", () => {
     const body = await res.json() as any;
     expect(body.csp).toBe(mockCsp);
     expect(body.url).toBe("https://example.com");
+    expect(body.title).toBe("Example Site");
   });
 
   it("should return CSP-Report-Only header when CSP is absent", async () => {
@@ -80,6 +81,20 @@ describe("Worker", () => {
     const res = await worker.fetch(req, {} as any, {} as any);
     const body = await res.json() as any;
     expect(body.csp).toBe(mockCsp);
+  });
+
+  it("should return null title when response is not HTML", async () => {
+    const mockCsp = "default-src 'self'";
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("", {
+        headers: { "content-security-policy": mockCsp, "content-type": "application/json" },
+      }),
+    );
+
+    const req = makeRequest("https://worker.dev/csp?url=https://example.com");
+    const res = await worker.fetch(req, {} as any, {} as any);
+    const body = await res.json() as any;
+    expect(body.title).toBeNull();
   });
 
   it("should return null csp when no CSP header exists", async () => {

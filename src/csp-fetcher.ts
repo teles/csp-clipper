@@ -1,4 +1,9 @@
-export async function fetchCspHeader(url: string): Promise<string | null> {
+export interface FetchCspResult {
+  csp: string | null;
+  title: string | null;
+}
+
+export async function fetchCspHeader(url: string): Promise<FetchCspResult> {
   const response = await fetch(url, {
     method: "GET",
     headers: {
@@ -11,7 +16,17 @@ export async function fetchCspHeader(url: string): Promise<string | null> {
     response.headers.get("content-security-policy") ||
     response.headers.get("content-security-policy-report-only");
 
-  return csp;
+  let title: string | null = null;
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("text/html")) {
+    const body = await response.text();
+    const match = body.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+    if (match) {
+      title = match[1].trim();
+    }
+  }
+
+  return { csp, title };
 }
 
 export function isValidUrl(input: string): boolean {

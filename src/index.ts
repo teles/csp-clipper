@@ -79,13 +79,13 @@ export default {
     }
 
     try {
-      const csp = await fetchCspHeader(targetUrl);
+      const { csp, title } = await fetchCspHeader(targetUrl);
 
       if (!csp) {
-        return jsonResponse(request, { url: targetUrl, csp: null, message: "No CSP header found" }, 200, rateLimitHeaders);
+        return jsonResponse(request, { url: targetUrl, csp: null, title, message: "No CSP header found" }, 200, rateLimitHeaders);
       }
 
-      return jsonResponse(request, { url: targetUrl, csp }, 200, rateLimitHeaders);
+      return jsonResponse(request, { url: targetUrl, csp, title }, 200, rateLimitHeaders);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       return jsonResponse(request, { error: `Failed to fetch URL: ${message}` }, 502, rateLimitHeaders);
