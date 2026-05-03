@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bootstrap release baseline
+        run: |
+          set -euo pipefail
+          baseline_version="$(node -p "require('./package.json').version")"
+          baseline_tag="v${baseline_version}"
+
+          if git rev-parse -q --verify "refs/tags/${baseline_tag}" >/dev/null; then
+            exit 0
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${baseline_tag}" >/dev/null 2>&1; then
+            git fetch --tags origin "refs/tags/${baseline_tag}:refs/tags/${baseline_tag}"
+            exit 0
+          fi
+
+          git tag -a "${baseline_tag}" -m "Baseline release ${baseline_tag}"
+          git push origin "${baseline_tag}"
+
+      - name: Release with zero-release
+        uses: teles/zero-release@v1
+        id: release
+        with:
+          branches: main
+          plugins: release-notes,changelog,git-commit
