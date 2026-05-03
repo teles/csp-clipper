@@ -58,7 +58,7 @@ jobs:
           git push origin "${baseline_tag}"
 
       - name: Release with zero-release
-        uses: teles/zero-release@v1
+        uses: teles/zero-release@v1.1.1
         id: release
         with:
           branches: main
