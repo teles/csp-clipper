@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { isValidUrl, fetchCspHeader } from "../src/csp-fetcher";
+import { isValidUrl, fetchCspHeader, splitPolicies } from "../src/csp-fetcher";
 
 describe("isValidUrl", () => {
   it("should accept valid http URLs", () => {
@@ -96,5 +96,72 @@ describe("fetchCspHeader", () => {
 
     const result = await fetchCspHeader("https://example.com");
     expect(result.csp).toBe("default-src 'self'");
+  });
+});
+
+describe("splitPolicies", () => {
+  it("should return an empty list for a missing header", () => {
+    expect(splitPolicies(null)).toEqual([]);
+  });
+
+  it("should split comma-separated policies and trim them", () => {
+    expect(splitPolicies("default-src 'self' ,  img-src *")).toEqual(["default-src 'self'", "img-src *"]);
+  });
+
+  it("should drop empty entries", () => {
+    expect(splitPolicies("default-src 'self',, ")).toEqual(["default-src 'self'"]);
+  });
+});
+
+describe("fetchCspHeader policies", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should list each repeated CSP header as its own policy", async () => {
+    const headers = new Headers();
+    headers.append("content-security-policy", "default-src 'self'");
+    headers.append("content-security-policy", "script-src 'none'");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("", { headers }));
+
+    const result = await fetchCspHeader("https://example.com");
+    expect(result.policies).toEqual([
+      { policy: "default-src 'self'", reportOnly: false },
+      { policy: "script-src 'none'", reportOnly: false },
+    ]);
+    expect(result.csp).toBe("default-src 'self'");
+    expect(result.reportOnly).toBe(false);
+  });
+
+  it("should list enforced policies before report-only ones", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("", {
+        headers: { "content-security-policy-report-only": "default-src *", "content-security-policy": "default-src 'self'" },
+      }),
+    );
+
+    const result = await fetchCspHeader("https://example.com");
+    expect(result.policies).toEqual([
+      { policy: "default-src 'self'", reportOnly: false },
+      { policy: "default-src *", reportOnly: true },
+    ]);
+  });
+
+  it("should flag a report-only policy when no enforced policy exists", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("", { headers: { "content-security-policy-report-only": "default-src 'self'" } }),
+    );
+
+    const result = await fetchCspHeader("https://example.com");
+    expect(result.csp).toBe("default-src 'self'");
+    expect(result.reportOnly).toBe(true);
+  });
+
+  it("should return no policies when no CSP header present", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(""));
+
+    const result = await fetchCspHeader("https://example.com");
+    expect(result.policies).toEqual([]);
+    expect(result.reportOnly).toBe(false);
   });
 });

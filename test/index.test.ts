@@ -160,4 +160,44 @@ describe("Worker", () => {
     const res = await worker.fetch(req, {} as any, {} as any);
     expect(res.status).toBe(200);
   });
+
+  it("should return every policy and flag report-only ones", async () => {
+    const headers = new Headers();
+    headers.append("content-security-policy", "default-src 'self'");
+    headers.append("content-security-policy", "img-src *");
+    headers.append("content-security-policy-report-only", "script-src 'none'");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("", { headers }));
+
+    const req = makeRequest("https://worker.dev/csp?url=https://example.com");
+    const res = await worker.fetch(req, {} as any, {} as any);
+    const body = await res.json() as any;
+    expect(body.csp).toBe("default-src 'self'");
+    expect(body.reportOnly).toBe(false);
+    expect(body.policies).toEqual([
+      { policy: "default-src 'self'", reportOnly: false },
+      { policy: "img-src *", reportOnly: false },
+      { policy: "script-src 'none'", reportOnly: true },
+    ]);
+  });
+
+  it("should flag the csp field as report-only when only that header exists", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("", { headers: { "content-security-policy-report-only": "default-src 'self'" } }),
+    );
+
+    const req = makeRequest("https://worker.dev/csp?url=https://example.com");
+    const res = await worker.fetch(req, {} as any, {} as any);
+    const body = await res.json() as any;
+    expect(body.reportOnly).toBe(true);
+  });
+
+  it("should return an empty policy list when no CSP header exists", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(""));
+
+    const req = makeRequest("https://worker.dev/csp?url=https://example.com");
+    const res = await worker.fetch(req, {} as any, {} as any);
+    const body = await res.json() as any;
+    expect(body.policies).toEqual([]);
+    expect(body.reportOnly).toBe(false);
+  });
 });
