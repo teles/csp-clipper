@@ -17,11 +17,11 @@ sequenceDiagram
     else
         Worker->>Target: GET https://example.com
         Target-->>Worker: HTTP Response with headers
-        Worker->>Worker: Extract CSP header
+        Worker->>Worker: Extract CSP and CSP-Report-Only policies
         alt CSP header found
-            Worker-->>User: 200 { url, csp }
+            Worker-->>User: 200 { url, csp, reportOnly, policies }
         else No CSP header
-            Worker-->>User: 200 { url, csp: null }
+            Worker-->>User: 200 { url, csp: null, policies: [] }
         end
     end
 ```
@@ -39,16 +39,32 @@ sequenceDiagram
 ```json
 {
   "url": "https://example.com",
-  "csp": "default-src 'self'; script-src 'none'"
+  "title": "Example Domain",
+  "csp": "default-src 'self'; script-src 'none'",
+  "reportOnly": false,
+  "policies": [
+    { "policy": "default-src 'self'; script-src 'none'", "reportOnly": false },
+    { "policy": "default-src 'none'; report-uri /csp-reports", "reportOnly": true }
+  ]
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `policies` | Every policy the site sends, enforced ones first. Repeated headers and comma-separated policies in one header are split into separate entries. |
+| `policies[].reportOnly` | `true` when the policy came from `Content-Security-Policy-Report-Only`, which browsers monitor but do not enforce. |
+| `csp` | The first entry of `policies`, kept for clients that read a single string. |
+| `reportOnly` | Whether `csp` came from the report-only header. |
 
 When no CSP header is found:
 
 ```json
 {
   "url": "https://example.com",
+  "title": "Example Domain",
   "csp": null,
+  "reportOnly": false,
+  "policies": [],
   "message": "No CSP header found"
 }
 ```

@@ -79,13 +79,18 @@ export default {
     }
 
     try {
-      const { csp, title } = await fetchCspHeader(targetUrl);
+      const { csp, reportOnly, policies, title } = await fetchCspHeader(targetUrl);
 
       if (!csp) {
-        return jsonResponse(request, { url: targetUrl, csp: null, title, message: "No CSP header found" }, 200, rateLimitHeaders);
+        return jsonResponse(
+          request,
+          { url: targetUrl, csp: null, reportOnly: false, policies: [], title, message: "No CSP header found" },
+          200,
+          rateLimitHeaders,
+        );
       }
 
-      return jsonResponse(request, { url: targetUrl, csp, title }, 200, rateLimitHeaders);
+      return jsonResponse(request, { url: targetUrl, csp, reportOnly, policies, title }, 200, rateLimitHeaders);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       return jsonResponse(request, { error: `Failed to fetch URL: ${message}` }, 502, rateLimitHeaders);
